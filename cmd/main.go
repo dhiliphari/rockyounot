@@ -3,11 +3,11 @@ package main
 import (
 	"context"
 	"log"
+	"os"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 
-	"github.com/dhiliphari/rockyounot/data"
 	"github.com/dhiliphari/rockyounot/internal/reader"
 )
 
@@ -27,7 +27,7 @@ func main() {
 
 	startTime := time.Now()
 
-	file, err := data.FS.Open("rockyou.txt")
+	file, err := os.Open("./data/rockyou.txt")
 	if err != nil {
 		log.Fatalf("error reading passwords file: %v", err)
 	}
