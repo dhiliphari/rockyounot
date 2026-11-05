@@ -31,17 +31,28 @@ func main() {
 	if err != nil {
 		log.Fatalf("error reading passwords file: %v", err)
 	}
+	defer file.Close()
 
-	lines := reader.Lines(file)
+	results := reader.Chunks(file, 1000)
 
-	for line := range lines {
-		if line.Err != nil {
-			log.Fatal(line.Err.Error())
+	for r := range results {
+		if r.Err != nil {
+			log.Fatal(r.Err.Error())
 		}
-		err := rdb.Do(context.Background(), "BF.ADD", "passwords", line.Line).Err()
+
+		args := make([]any, 0, len(r.Chunk.Lines)+2)
+		args = append(args, "BF.MADD", "passwords")
+		for _, line := range r.Chunk.Lines {
+			args = append(args, line.Data)
+		}
+
+		err := rdb.Do(context.Background(), args...).Err()
 		if err != nil {
-			log.Printf("error adding password to filter: %v", err)
+			r.Chunk.Release()
+			log.Fatalf("error adding %d passwords to filter: %v", len(r.Chunk.Lines), err)
 		}
+
+		r.Chunk.Release()
 	}
 
 	log.Printf("Processing completed in %v", time.Since(startTime))
