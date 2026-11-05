@@ -23,21 +23,15 @@ func Chunks(file io.Reader, chunkSize int) <-chan ChunkResult {
 		for {
 			chunk := getChunk()
 
-			for len(chunk.Lines) < chunkSize && scanner.Scan() {
-				line := getLine()
-
-				line.Data = line.Data[:0]
-				line.Data = append(line.Data[:0], scanner.Bytes()...)
-
-				chunk.Lines = append(chunk.Lines, line)
+			for chunk.Len() < chunkSize && scanner.Scan() {
+				chunk.add(scanner.Bytes())
 			}
 
-			if len(chunk.Lines) > 0 {
-				out <- ChunkResult{Chunk: chunk}
-			} else {
+			if chunk.Len() == 0 {
 				chunk.Release()
 				break
 			}
+			out <- ChunkResult{Chunk: chunk}
 		}
 
 		if err := scanner.Err(); err != nil {

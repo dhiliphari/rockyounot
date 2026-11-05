@@ -2,45 +2,41 @@ package reader
 
 import "sync"
 
-type Line struct {
-	Data []byte
-}
-
 type Chunk struct {
-	Lines []*Line
+	buf  []byte
+	ends []int
 }
 
-var linePool = sync.Pool{
-	New: func() any {
-		return &Line{}
-	},
+func (c *Chunk) Len() int {
+	return len(c.ends)
+}
+
+func (c *Chunk) Line(i int) []byte {
+	start := 0
+	if i > 0 {
+		start = c.ends[i-1]
+	}
+	end := c.ends[i]
+	return c.buf[start:end:end] // cap the slice so appends by the caller can't override the next line
+}
+
+func (c *Chunk) add(b []byte) {
+	c.buf = append(c.buf, b...)
+	c.ends = append(c.ends, len(c.buf))
 }
 
 var chunkPool = sync.Pool{
 	New: func() any {
-		return &Chunk{
-			Lines: make([]*Line, 0),
-		}
+		return &Chunk{}
 	},
-}
-
-func getLine() *Line {
-	return linePool.Get().(*Line)
 }
 
 func getChunk() *Chunk {
 	return chunkPool.Get().(*Chunk)
 }
 
-func (line *Line) Release() {
-	line.Data = line.Data[:0]
-	linePool.Put(line)
-}
-
-func (chunk *Chunk) Release() {
-	for _, line := range chunk.Lines {
-		line.Release()
-	}
-	chunk.Lines = chunk.Lines[:0]
-	chunkPool.Put(chunk)
+func (c *Chunk) Release() {
+	c.buf = c.buf[:0]
+	c.ends = c.ends[:0]
+	chunkPool.Put(c)
 }

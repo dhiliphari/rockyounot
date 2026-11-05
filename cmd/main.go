@@ -40,16 +40,16 @@ func main() {
 			log.Fatal(r.Err.Error())
 		}
 
-		args := make([]any, 0, len(r.Chunk.Lines)+2)
+		args := make([]any, 0, r.Chunk.Len()+2)
 		args = append(args, "BF.MADD", "passwords")
-		for _, line := range r.Chunk.Lines {
-			args = append(args, line.Data)
+		for i := range r.Chunk.Len() {
+			args = append(args, r.Chunk.Line(i))
 		}
 
 		err := rdb.Do(context.Background(), args...).Err()
 		if err != nil {
 			r.Chunk.Release()
-			log.Fatalf("error adding %d passwords to filter: %v", len(r.Chunk.Lines), err)
+			log.Fatalf("error adding %d passwords to filter: %v", r.Chunk.Len(), err)
 		}
 
 		r.Chunk.Release()
