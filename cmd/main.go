@@ -9,6 +9,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/dhiliphari/rockyounot/internal/reader"
+	"github.com/dhiliphari/rockyounot/internal/stores"
 )
 
 const CAPACITY = 14_344_392 // equivalent to total passwords exposed by rockyou.txt
@@ -19,11 +20,11 @@ func main() {
 	})
 	defer rdb.Close()
 
-	// Setting a 0.1% error rate for 14 million items
-	err := rdb.Do(context.Background(), "BF.RESERVE", "passwords", 0.001, CAPACITY).Err()
-	if err != nil && err.Error() != "ERR item exists" { // Ignore error if it already exists
-		log.Fatalf("error setting up filter: %v", err)
+	store := &stores.RedisStore{
+		RDB: rdb,
 	}
+	// Setting a 0.1% error rate for 14 million items
+	store.Initialize(context.Background(), 0.001, CAPACITY)
 
 	startTime := time.Now()
 
@@ -40,13 +41,12 @@ func main() {
 			log.Fatal(r.Err.Error())
 		}
 
-		args := make([]any, 0, r.Chunk.Len()+2)
-		args = append(args, "BF.MADD", "passwords")
+		passwords := make([]any, 0, r.Chunk.Len())
 		for i := range r.Chunk.Len() {
-			args = append(args, r.Chunk.Line(i))
+			passwords = append(passwords, r.Chunk.Line(i))
 		}
 
-		err := rdb.Do(context.Background(), args...).Err()
+		err := store.Add(context.Background(), passwords)
 		if err != nil {
 			r.Chunk.Release()
 			log.Fatalf("error adding %d passwords to filter: %v", r.Chunk.Len(), err)
