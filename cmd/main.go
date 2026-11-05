@@ -1,9 +1,27 @@
 package main
 
 import (
-	"fmt"
+	"log"
+
+	"github.com/dhiliphari/rockyounot/data"
+	"github.com/dhiliphari/rockyounot/internal/reader"
 )
 
 func main() {
-	fmt.Println("Hello world!")
+	file, err := data.FS.Open("rockyou.txt")
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	lines := reader.Lines(file)
+
+	count := 0
+	for line := range lines {
+		if line.Err != nil {
+			log.Fatal(line.Err.Error())
+		}
+		count++
+	}
+
+	log.Printf("Total passwords: %d", count)
 }
