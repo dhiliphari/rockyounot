@@ -35,8 +35,21 @@ func main() {
 
 	cfg := loadCfg()
 
-	store, rdb := createStore(cfg)
+	rdb, err := openRDB(cfg.redisAddr)
+	if err != nil {
+		logger.Error("error connecting to redis", "error", err.Error())
+		os.Exit(1)
+	}
 	defer rdb.Close()
+
+	store := &stores.RedisStore{
+		RDB: rdb,
+	}
+	err = store.Initialize(context.Background(), cfg.errorRate, cfg.capacity)
+	if err != nil {
+		logger.Error("error initializing filter", "errors", err.Error())
+		os.Exit(1)
+	}
 
 	logger.Info("seeding passwords", "data", cfg.seedFile)
 
@@ -86,15 +99,15 @@ func loadCfg() *config {
 	return &cfg
 }
 
-func createStore(cfg *config) (stores.PasswordStore, *redis.Client) {
+func openRDB(addr string) (*redis.Client, error) {
 	rdb := redis.NewClient(&redis.Options{
-		Addr: cfg.redisAddr,
+		Addr: addr,
 	})
 
-	store := &stores.RedisStore{
-		RDB: rdb,
+	err := rdb.Ping(context.Background()).Err()
+	if err != nil {
+		return nil, err
 	}
-	store.Initialize(context.Background(), cfg.errorRate, cfg.capacity)
 
-	return store, rdb
+	return rdb, nil
 }

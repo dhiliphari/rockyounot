@@ -31,7 +31,7 @@ func SeedPasswords(seedFile string, store stores.PasswordStore, chunkSize int, t
 			}
 
 			if r.Err != nil {
-				return count, err
+				return count, r.Err
 			}
 
 			count += r.Chunk.Len()
