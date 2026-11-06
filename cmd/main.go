@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -31,11 +32,14 @@ type application struct {
 }
 
 func main() {
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	cfg := loadCfg()
 
-	rdb, err := openRDB(cfg.redisAddr)
+	rdb, err := openRDB(ctx, cfg.redisAddr)
 	if err != nil {
 		logger.Error("error connecting to redis", "error", err.Error())
 		os.Exit(1)
@@ -45,7 +49,7 @@ func main() {
 	store := &stores.RedisStore{
 		RDB: rdb,
 	}
-	err = store.Initialize(context.Background(), cfg.errorRate, cfg.capacity)
+	err = store.Initialize(ctx, cfg.errorRate, cfg.capacity)
 	if err != nil {
 		logger.Error("error initializing filter", "errors", err.Error())
 		os.Exit(1)
@@ -53,7 +57,7 @@ func main() {
 
 	logger.Info("seeding passwords", "data", cfg.seedFile)
 
-	count, err := data.SeedPasswords(cfg.seedFile, store, cfg.chunkSize, time.Minute)
+	count, err := data.SeedPasswords(ctx, cfg.seedFile, store, cfg.chunkSize, time.Minute)
 	if err != nil {
 		logger.Error("seeding failed", "count", count, "error", err.Error())
 		os.Exit(1)
@@ -78,8 +82,28 @@ func main() {
 
 	logger.Info("starting server", "addr", srv.Addr)
 
-	err = srv.ListenAndServeTLS("./tls/cert.pem", "./tls/key.pem")
-	logger.Error(err.Error())
+	ch := make(chan error, 1)
+
+	go func() {
+		err = srv.ListenAndServeTLS("./tls/cert.pem", "./tls/key.pem")
+		if err != nil {
+			ch <- err
+		}
+		close(ch)
+	}()
+
+	select {
+	case err = <-ch:
+	case <-ctx.Done():
+		timeout, cancel := context.WithTimeout(context.Background(), time.Second*10)
+		defer cancel()
+		err = srv.Shutdown(timeout)
+	}
+
+	if err != nil {
+		logger.Error(err.Error())
+	}
+
 	os.Exit(1)
 }
 
@@ -99,12 +123,12 @@ func loadCfg() *config {
 	return &cfg
 }
 
-func openRDB(addr string) (*redis.Client, error) {
+func openRDB(ctx context.Context, addr string) (*redis.Client, error) {
 	rdb := redis.NewClient(&redis.Options{
 		Addr: addr,
 	})
 
-	err := rdb.Ping(context.Background()).Err()
+	err := rdb.Ping(ctx).Err()
 	if err != nil {
 		return nil, err
 	}

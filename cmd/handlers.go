@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -23,7 +22,7 @@ func (app *application) checkPasswordHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	exists, err := app.store.Exists(context.Background(), []byte(input.Password))
+	exists, err := app.store.Exists(r.Context(), []byte(input.Password))
 	if err != nil {
 		app.serverError(w, r, err)
 		return
@@ -62,7 +61,7 @@ func (app *application) addPasswordHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	err = app.store.Add(context.Background(), []any{input.Password})
+	err = app.store.Add(r.Context(), []any{input.Password})
 	if err != nil {
 		app.serverError(w, r, err)
 		return

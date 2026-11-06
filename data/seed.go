@@ -10,7 +10,7 @@ import (
 	"github.com/dhiliphari/rockyounot/internal/stores"
 )
 
-func SeedPasswords(seedFile string, store stores.PasswordStore, chunkSize int, timeout time.Duration) (int, error) {
+func SeedPasswords(ctx context.Context, seedFile string, store stores.PasswordStore, chunkSize int, timeout time.Duration) (int, error) {
 	file, err := os.Open(seedFile)
 	if err != nil {
 		return 0, err
@@ -20,7 +20,7 @@ func SeedPasswords(seedFile string, store stores.PasswordStore, chunkSize int, t
 	var count int
 	results := reader.Chunks(file, chunkSize)
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	for {
