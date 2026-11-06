@@ -8,5 +8,7 @@ func (app *application) routes() http.Handler {
 	mux.HandleFunc("POST /passwords/check", app.checkPasswordHandler)
 	mux.HandleFunc("POST /passwords", app.addPasswordHandler)
 
+	mux.Handle("GET /", http.FileServer(http.Dir("./static")))
+
 	return mux
 }

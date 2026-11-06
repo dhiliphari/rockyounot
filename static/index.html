@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RockYouNot</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script defer src="/app.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body>
+  <main class="container">
+    <header>
+      <h1>RockYou<span class="accent">Not</span></h1>
+      <p class="tagline">Is your password already in a hacker's wordlist?</p>
+    </header>
+
+    <section class="card about">
+      <h2>What is this?</h2>
+      <p>
+        In 2009 the social app RockYou was breached and over 14 million plaintext passwords were leaked.
+        That list, <code>rockyou.txt</code>, is now one of the first wordlists attackers use when cracking passwords.
+      </p>
+      <p>
+        <strong>RockYouNot</strong> loads every password from that list into a Redis
+        <a href="https://redis.io/docs/latest/develop/data-types/probabilistic/bloom-filter/" target="_blank" rel="noopener">Bloom filter</a>
+        so you can check in an instant whether a password has been compromised.
+        A "not found" result is definitive. A "found" result is correct about 99.9% of the time,
+        because Bloom filters can occasionally report false positives.
+      </p>
+    </section>
+
+    <section class="card" x-data="passwordForm('/passwords/check')">
+      <h2>Check a password</h2>
+      <form @submit.prevent="submit">
+        <div class="input-row">
+          <input :type="show ? 'text' : 'password'" x-model="password" placeholder="Enter a password" autocomplete="off" required>
+          <button type="button" class="ghost" @click="show = !show" x-text="show ? 'Hide' : 'Show'"></button>
+        </div>
+        <button type="submit" :disabled="loading || !password.trim()" x-text="loading ? 'Checking…' : 'Check'"></button>
+      </form>
+
+      <template x-if="result !== null">
+        <div class="result" :class="result.exists ? 'bad' : 'good'">
+          <template x-if="result.exists">
+            <p><strong>Compromised.</strong> This password appears in the RockYou leak. Don't use it.</p>
+          </template>
+          <template x-if="!result.exists">
+            <p><strong>Not found.</strong> This password isn't in the RockYou leak.</p>
+          </template>
+        </div>
+      </template>
+      <p class="error" x-show="error" x-text="error"></p>
+    </section>
+
+    <section class="card" x-data="passwordForm('/passwords')">
+      <h2>Report a password</h2>
+      <p class="muted">Know of a compromised password that isn't in the list? Add it to the filter.</p>
+      <form @submit.prevent="submit">
+        <div class="input-row">
+          <input :type="show ? 'text' : 'password'" x-model="password" placeholder="Password to add" autocomplete="off" required>
+          <button type="button" class="ghost" @click="show = !show" x-text="show ? 'Hide' : 'Show'"></button>
+        </div>
+        <button type="submit" :disabled="loading || !password.trim()" x-text="loading ? 'Adding…' : 'Add'"></button>
+      </form>
+
+      <template x-if="result !== null">
+        <div class="result good">
+          <p><strong>Added.</strong> This password will now be flagged as compromised.</p>
+        </div>
+      </template>
+      <p class="error" x-show="error" x-text="error"></p>
+    </section>
+
+    <footer class="muted">
+      Checked passwords are never saved. Added passwords only set bits in the Bloom filter, so the original text isn't kept.
+    </footer>
+  </main>
+</body>
+</html>
