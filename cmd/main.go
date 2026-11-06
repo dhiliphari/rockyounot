@@ -2,58 +2,65 @@ package main
 
 import (
 	"context"
-	"log"
+	"flag"
+	"log/slog"
 	"os"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 
-	"github.com/dhiliphari/rockyounot/internal/reader"
+	"github.com/dhiliphari/rockyounot/data"
 	"github.com/dhiliphari/rockyounot/internal/stores"
 )
 
-const CAPACITY = 14_344_392 // equivalent to total passwords exposed by rockyou.txt
+type config struct {
+	redisAddr string
+	seedFile  string
+	capacity  int
+	errorRate float64
+	chunkSize int
+}
 
 func main() {
-	rdb := redis.NewClient(&redis.Options{
-		Addr: "localhost:6379",
-	})
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+	cfg := loadCfg()
+
+	store, rdb := createStore(cfg)
 	defer rdb.Close()
+
+	logger.Info("seeding passwords", "data", cfg.seedFile)
+	count, err := data.SeedPasswords(cfg.seedFile, store, cfg.chunkSize, time.Minute)
+	if err != nil {
+		logger.Error("seeding failed", "count", count, "error", err.Error())
+		os.Exit(1)
+	}
+	logger.Info("seed completed", "count", count)
+}
+
+func loadCfg() *config {
+	var cfg config
+
+	flag.IntVar(&cfg.capacity, "capacity", 15_000_000, "capacity to reserve")
+	flag.Float64Var(&cfg.errorRate, "errorRate", 0.001, "acceptable error rate")
+	flag.IntVar(&cfg.chunkSize, "chunkSize", 1000, "reader chunk size")
+	flag.StringVar(&cfg.redisAddr, "redisAddr", "localhost:6379", "redis connection address")
+	flag.StringVar(&cfg.seedFile, "seedFile", "./data/rockyou.txt", "file containing passwords to seed into the filter")
+
+	flag.Parse()
+
+	return &cfg
+}
+
+func createStore(cfg *config) (stores.PasswordStore, *redis.Client) {
+	rdb := redis.NewClient(&redis.Options{
+		Addr: cfg.redisAddr,
+	})
 
 	store := &stores.RedisStore{
 		RDB: rdb,
 	}
-	// Setting a 0.1% error rate for 14 million items
-	store.Initialize(context.Background(), 0.001, CAPACITY)
+	store.Initialize(context.Background(), cfg.errorRate, cfg.capacity)
 
-	startTime := time.Now()
-
-	file, err := os.Open("./data/rockyou.txt")
-	if err != nil {
-		log.Fatalf("error reading passwords file: %v", err)
-	}
-	defer file.Close()
-
-	results := reader.Chunks(file, 1000)
-
-	for r := range results {
-		if r.Err != nil {
-			log.Fatal(r.Err.Error())
-		}
-
-		passwords := make([]any, 0, r.Chunk.Len())
-		for i := range r.Chunk.Len() {
-			passwords = append(passwords, r.Chunk.Line(i))
-		}
-
-		err := store.Add(context.Background(), passwords)
-		if err != nil {
-			r.Chunk.Release()
-			log.Fatalf("error adding %d passwords to filter: %v", r.Chunk.Len(), err)
-		}
-
-		r.Chunk.Release()
-	}
-
-	log.Printf("Processing completed in %v", time.Since(startTime))
+	return store, rdb
 }

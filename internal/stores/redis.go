@@ -12,13 +12,13 @@ type RedisStore struct {
 	RDB *redis.Client
 }
 
-func (r *RedisStore) Initialize(ctx context.Context, errorRate float64, capacity int64) error {
+func (r *RedisStore) Initialize(ctx context.Context, errorRate float64, capacity int) error {
 	err := r.RDB.FlushAll(ctx).Err()
 	if err != nil {
 		return err
 	}
 
-	err = r.RDB.BFReserve(ctx, KEY, errorRate, capacity).Err()
+	err = r.RDB.BFReserve(ctx, KEY, errorRate, int64(capacity)).Err()
 	if err != nil {
 		return err
 	}
