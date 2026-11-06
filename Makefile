@@ -1,13 +1,29 @@
 APP_NAME := rockyounot
 APP_PATH := ./cmd
+SEED_FILE := ./data/rockyou.txt
 
-.PHONY: run build certs
+.PHONY: run build certs up down data
 
-run:
+up:
+	@echo "Starting Redis..."
+	docker compose up -d
+
+down:
+	@echo "Stopping Redis..."
+	docker compose down
+
+data: $(SEED_FILE)
+
+# Order-only prerequisite: unzip only when the .txt is missing, not when the zip is newer
+$(SEED_FILE): | $(SEED_FILE).zip
+	@echo "Unzipping $(SEED_FILE).zip..."
+	unzip -n $(SEED_FILE).zip -d ./data
+
+run: data
 	@echo "Running $(APP_NAME)..."
 	go run $(APP_PATH)
 
-build:
+build: data
 	@echo "Building $(APP_NAME)..."
 	mkdir -p ./bin/data
 	cp -r ./tls ./bin/
