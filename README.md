@@ -106,6 +106,27 @@ Example:
 go run ./cmd -redisAddr redis.local:6379 -errorRate 0.0001
 ```
 
+### Filter sizing
+
+With the default `-capacity` and `-errorRate`, the standard Bloom filter formulas give:
+
+| Parameter | Meaning                  | Value                            |
+|-----------|--------------------------|----------------------------------|
+| `n`       | Items in the filter      | 15,000,000                       |
+| `p`       | False-positive rate      | 0.001000025 (1 in 1,000)         |
+| `m`       | Bits in the filter       | 215,663,814 (25.71 MiB)          |
+| `k`       | Hash functions           | 10                               |
+
+These come from:
+
+```
+m = ceil((n * log(p)) / log(1 / pow(2, log(2))))
+k = round((m / n) * log(2))
+p = pow(1 - exp(-k / (m / n)), k)
+```
+
+These are theoretical numbers. Redis picks its own internal layout, so actual memory use may differ slightly.
+
 ## API
 
 ### Check a password
